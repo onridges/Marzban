@@ -1,0 +1,31 @@
+FROM python:3.13-slim
+
+# Developer image: installs common build deps so pip can fetch manylinux wheels
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       build-essential \
+       gcc \
+       g++ \
+       libssl-dev \
+       zlib1g-dev \
+       pkg-config \
+       ca-certificates \
+       curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirement files and install dependencies. Use pip cache when available.
+COPY requirements.txt ./
+RUN python -m pip install --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Copy the application (mounted in development; kept minimal here)
+COPY . /app
+
+EXPOSE 8080
+
+# Default command for development: run the FastAPI app via uvicorn
+CMD ["python", "main.py"]
