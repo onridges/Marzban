@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Tuple, Union
 from sqlalchemy import and_, delete, func, or_
 from sqlalchemy.orm import Query, Session, joinedload
 from sqlalchemy.sql.functions import coalesce
+import secrets
+import hashlib
 
 from app.db.models import (
     JWT,
@@ -28,6 +30,7 @@ from app.db.models import (
     User,
     UserTemplate,
     UserUsageResetLogs,
+    RefreshToken,
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
 from app.models.node import NodeCreate, NodeModify, NodeStatus, NodeUsageResponse
@@ -380,6 +383,7 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
 
     dbuser = User(
         username=user.username,
+        hashed_password=None,
         proxies=proxies,
         status=user.status,
         data_limit=(user.data_limit or None),
@@ -397,10 +401,41 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
             fire_on_either=user.next_plan.fire_on_either,
         ) if user.next_plan else None
     )
+    # if caller supplied a hashed_password attribute on the pydantic model, set it
+    if getattr(user, 'hashed_password', None):
+        dbuser.hashed_password = user.hashed_password
     db.add(dbuser)
     db.commit()
     db.refresh(dbuser)
     return dbuser
+
+
+def create_refresh_token(db: Session, user: User, raw_token: str, expires_at: datetime):
+    """Store a refresh token (hashed) for a user."""
+    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+    rt = RefreshToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at)
+    db.add(rt)
+    db.commit()
+    db.refresh(rt)
+    return rt
+
+
+def get_refresh_token_by_hash(db: Session, token_hash: str) -> Optional[RefreshToken]:
+    return db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+
+
+def revoke_refresh_token(db: Session, token_hash: str):
+    rt = get_refresh_token_by_hash(db, token_hash)
+    if not rt:
+        return None
+    rt.revoked = True
+    db.commit()
+    return rt
+
+
+def revoke_all_user_refresh_tokens(db: Session, user: User):
+    db.query(RefreshToken).filter(RefreshToken.user_id == user.id).update({"revoked": True})
+    db.commit()
 
 
 def remove_user(db: Session, dbuser: User) -> User:

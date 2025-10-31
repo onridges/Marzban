@@ -68,6 +68,19 @@ type DashboardStateType = {
   onShowingNodesUsage: (isShowingNodesUsage: boolean) => void;
   resetDataUsage: (user: User) => Promise<void>;
   revokeSubscription: (user: User) => Promise<void>;
+
+  // Bulk apply template state/actions
+  selectedUsernames: string[];
+  toggleSelectUser: (username: string, checked: boolean) => void;
+  clearSelection: () => void;
+  isApplyingTemplate: boolean;
+  onApplyingTemplate: (isOpen: boolean) => void;
+  applyTemplateBulk: (opts: {
+    template_id: number;
+    apply_inbounds: boolean;
+    apply_data_limit: boolean;
+    apply_expire_duration: boolean;
+  }) => Promise<void>;
 };
 
 const fetchUsers = (query: FilterType): Promise<User[]> => {
@@ -117,12 +130,39 @@ export const useDashboard = create(
     resetUsageUser: null,
     revokeSubscriptionUser: null,
     filters: {
-      username: "",
+      search: "",
+      offset: 0,
       limit: getUsersPerPageLimitSize(),
       sort: "-created_at",
     },
     inbounds: new Map(),
     isEditingCore: false,
+    selectedUsernames: [],
+    isApplyingTemplate: false,
+    onApplyingTemplate: (isOpen) => set({ isApplyingTemplate: isOpen }),
+    toggleSelectUser: (username, checked) => {
+      const current = new Set(get().selectedUsernames);
+      if (checked) current.add(username);
+      else current.delete(username);
+      set({ selectedUsernames: Array.from(current) });
+    },
+    clearSelection: () => set({ selectedUsernames: [] }),
+    applyTemplateBulk: async (opts) => {
+      const usernames = get().selectedUsernames;
+      if (!usernames || usernames.length === 0) return;
+      await fetch("/user_template/apply", {
+        method: "POST",
+        body: {
+          template_id: opts.template_id,
+          usernames,
+          apply_inbounds: opts.apply_inbounds,
+          apply_data_limit: opts.apply_data_limit,
+          apply_expire_duration: opts.apply_expire_duration,
+        },
+      });
+      set({ isApplyingTemplate: false, selectedUsernames: [] });
+      get().refetchUsers();
+    },
     refetchUsers: () => {
       fetchUsers(get().filters);
     },

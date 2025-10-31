@@ -3,6 +3,30 @@ services:
     image: gozargah/marzban:latest
     restart: always
     env_file: .env
-    network_mode: host
+    environment:
+      # 在容器内强制使用 mysql 服务名，避免 .env 中 127.0.0.1 被引用
+      SQLALCHEMY_DATABASE_URL: "mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?charset=utf8mb4"
+      DEBUG: "false"
+      DISABLE_DASHBOARD_DEV: "true"
+    ports:
+      - "8000:8000"
     volumes:
       - /var/lib/marzban:/var/lib/marzban
+    depends_on:
+      - mysql
+  
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-marzban}
+      MYSQL_USER: ${MYSQL_USER:-marzban}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "15555:3306"
+
+volumes:
+  mysql_data:

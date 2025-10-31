@@ -19,7 +19,18 @@ DASHBOARD_PATH = config("DASHBOARD_PATH", default="/dashboard/")
 DEBUG = config("DEBUG", default=False, cast=bool)
 DOCS = config("DOCS", default=False, cast=bool)
 
-ALLOWED_ORIGINS = config("ALLOWED_ORIGINS", default="*").split(",")
+# CORS: avoid '*' when allow_credentials=True; use explicit origins.
+# If env ALLOWED_ORIGINS is not set, provide sensible dev defaults.
+_raw_allowed = config("ALLOWED_ORIGINS", default="")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_allowed.split(",") if o.strip()]
+if not ALLOWED_ORIGINS:
+    # Development-friendly defaults
+    ALLOWED_ORIGINS = [
+        f"http://127.0.0.1:{UVICORN_PORT}",
+        f"http://localhost:{UVICORN_PORT}",
+        "http://localhost:3001",
+        "http://localhost:3000",
+    ]
 
 VITE_BASE_API = f"http://127.0.0.1:{UVICORN_PORT}/api/" \
     if DEBUG and config("VITE_BASE_API", default="/api/") == "/api/" \
@@ -46,6 +57,8 @@ TELEGRAM_LOGGER_CHANNEL_ID = config("TELEGRAM_LOGGER_CHANNEL_ID", cast=int, defa
 TELEGRAM_DEFAULT_VLESS_FLOW = config("TELEGRAM_DEFAULT_VLESS_FLOW", default="")
 
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = config("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", cast=int, default=1440)
+# Refresh tokens expiry in days
+REFRESH_TOKEN_EXPIRE_DAYS = config("REFRESH_TOKEN_EXPIRE_DAYS", cast=int, default=30)
 
 CUSTOM_TEMPLATES_DIRECTORY = config("CUSTOM_TEMPLATES_DIRECTORY", default=None)
 SUBSCRIPTION_PAGE_TEMPLATE = config("SUBSCRIPTION_PAGE_TEMPLATE", default="subscription/index.html")
@@ -146,3 +159,11 @@ JOB_RECORD_NODE_USAGES_INTERVAL = config("JOB_RECORD_NODE_USAGES_INTERVAL", cast
 JOB_RECORD_USER_USAGES_INTERVAL = config("JOB_RECORD_USER_USAGES_INTERVAL", cast=int, default=10)
 JOB_REVIEW_USERS_INTERVAL = config("JOB_REVIEW_USERS_INTERVAL", cast=int, default=10)
 JOB_SEND_NOTIFICATIONS_INTERVAL = config("JOB_SEND_NOTIFICATIONS_INTERVAL", cast=int, default=30)
+
+# 支付系统配置
+DOMAIN = config("DOMAIN", default="http://localhost:8000")
+ALIPAY_APP_ID = config("ALIPAY_APP_ID", default="")
+ALIPAY_PRIVATE_KEY = config("ALIPAY_PRIVATE_KEY", default="")
+ALIPAY_PUBLIC_KEY = config("ALIPAY_PUBLIC_KEY", default="")
+ALIPAY_NOTIFY_URL = config("ALIPAY_NOTIFY_URL", default=f"{DOMAIN}/api/v1/payment/callback/alipay")
+ALIPAY_RETURN_URL = config("ALIPAY_RETURN_URL", default=f"{DOMAIN}/dashboard/user")

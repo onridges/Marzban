@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  mariadb:
+    image: mariadb:10.6
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: marzban
+      MYSQL_USER: marzban
+      MYSQL_PASSWORD: marzban_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - marzban_db_data:/var/lib/mysql
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file: .env
+    volumes:
+      - .:/app
+    ports:
+      - "18000:8000"
+      - "3000:3000"
+    environment:
+      PYTHONPATH: /app
+      XRAY_EXECUTABLE_PATH: /bin/true
+      XRAY_ASSETS_PATH: /app/xray_assets
+      SQLALCHEMY_DATABASE_URL: "mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}?charset=utf8mb4"
+      DB_HOST: "mysql"
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+      DOCS: "true"
+      DEBUG: "true"
+      UVICORN_HOST: "0.0.0.0"
+      DISABLE_DASHBOARD_DEV: "true"
+    command: bash -c "chmod +x /app/dev-entrypoint.sh && /app/dev-entrypoint.sh"
+
+volumes:
+  marzban_db_data:

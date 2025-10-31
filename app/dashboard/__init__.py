@@ -53,7 +53,9 @@ def run_build():
 
 @app.on_event("startup")
 def startup():
-    if DEBUG:
+    # 支持通过环境变量禁用开发模式（避免容器内缺少 npm 导致启动失败）
+    disable_dev = os.getenv("DISABLE_DASHBOARD_DEV", "false").lower() == "true"
+    if DEBUG and not disable_dev:
         run_dev()
     else:
         run_build()

@@ -15,11 +15,12 @@ import { ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FC, useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { z } from "zod";
 import { Footer } from "components/Footer";
 import { Input } from "components/Input";
 import { fetch } from "service/http";
+import { useAuth } from "../contexts/AuthContext";
 import { removeAuthToken, setAuthToken } from "utils/authStorage";
 import { ReactComponent as Logo } from "assets/logo.svg";
 import { useTranslation } from "react-i18next";
@@ -60,27 +61,25 @@ export const Login: FC = () => {
     resolver: zodResolver(schema),
   });
   useEffect(() => {
-    removeAuthToken();
     if (location.pathname !== "/login") {
       navigate("/login", { replace: true });
     }
   }, []);
-  const login = (values: FieldValues) => {
+  const { login: authLogin } = useAuth();
+
+  const login = async (values: FieldValues) => {
     setError("");
-    const formData = new FormData();
-    formData.append("username", values.username);
-    formData.append("password", values.password);
-    formData.append("grant_type", "password");
     setLoading(true);
-    fetch("/admin/token", { method: "post", body: formData })
-      .then(({ access_token: token }) => {
-        setAuthToken(token);
-        navigate("/");
-      })
-      .catch((err) => {
-        setError(err.response._data.detail);
-      })
-      .finally(setLoading.bind(null, false));
+    try {
+      const role = await authLogin(values.username, values.password);
+      navigate(role === "admin" ? "/admin" : "/user");
+    } catch (err: any) {
+      // 兼容 ofetch 错误结构与一般 Error
+      const detail = err?.response?._data?.detail || err?.message || "Login failed";
+      setError(detail);
+    } finally {
+      setLoading(false);
+    }
   };
   return (
     <VStack justifyContent="space-between" minH="100vh" p="6" w="full">
@@ -134,6 +133,22 @@ export const Login: FC = () => {
                     {<LoginIcon marginRight={1} />}
                     {t("login")}
                   </Button>
+                  {/* 显眼的注册按钮，避免用户错过底部小链接 */}
+                  <Link to="/register">
+                    <Button w="full" variant="outline" colorScheme="primary">
+                      {t("register.signUp")}
+                    </Button>
+                  </Link>
+                  <HStack w="full" justifyContent="center" pt={2}>
+                    <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.400" }}>
+                      {t("login.noAccount")}
+                    </Text>
+                    <Link to="/register">
+                      <Text fontSize="sm" color="primary.500" fontWeight="medium">
+                        {t("register.signUp")}
+                      </Text>
+                    </Link>
+                  </HStack>
                 </VStack>
               </form>
             </Box>

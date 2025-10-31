@@ -97,7 +97,7 @@ export const QRCodeDialog: FC = () => {
               lg: "row",
             }}
           >
-            {subscribeUrl && (
+                {subscribeUrl && (
               <VStack>
                 <QRCode
                   mx="auto"
@@ -106,7 +106,7 @@ export const QRCodeDialog: FC = () => {
                   level={"L"}
                   includeMargin={false}
                   value={subscribeQrLink}
-                  bg="white"
+                  bgColor="white"
                 />
                 <Text display="block" textAlign="center" pb={3} mt={1}>
                   {t("qrcodeDialog.sublink")}
@@ -157,7 +157,7 @@ export const QRCodeDialog: FC = () => {
                         level={"L"}
                         includeMargin={false}
                         value={link}
-                        bg="white"
+                        bgColor="white"
                       />
                     </HStack>
                   );

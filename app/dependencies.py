@@ -6,6 +6,11 @@ from config import SUDOERS
 from fastapi import Depends, HTTPException
 from datetime import datetime, timezone, timedelta
 from app.utils.jwt import get_subscription_payload
+from fastapi.security import OAuth2PasswordBearer
+from app.utils.jwt import get_user_payload
+import logging
+
+logger = logging.getLogger("get_current_user")
 
 
 def validate_admin(db: Session, username: str, password: str) -> Optional[AdminValidationResult]:
@@ -113,3 +118,42 @@ def get_expired_users_list(db: Session, admin: Admin, expired_after: Optional[da
         u for u in dbusers
         if u.expire and expired_after.timestamp() <= u.expire <= expired_before.timestamp()
     ]
+
+
+# 用户令牌依赖：通过用户访问令牌获取当前用户（含 id/username 等完整字段）
+user_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
+
+def get_current_user(
+        db: Session = Depends(get_db),
+        token: str = Depends(user_oauth2_scheme)
+) -> UserResponse:
+    try:
+        logger.info(f"[get_current_user] token_len={len(token) if token else 0}")
+    except Exception:
+        pass
+
+    payload = get_user_payload(token)
+    try:
+        logger.info(f"[get_current_user] payload={payload}")
+    except Exception:
+        pass
+    if not payload or 'username' not in payload:
+        try:
+            logger.warning("[get_current_user] invalid payload or missing username")
+        except Exception:
+            pass
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+    dbuser = crud.get_user(db, payload['username'])
+    try:
+        logger.info(f"[get_current_user] dbuser_found={bool(dbuser)} username={payload.get('username')}")
+    except Exception:
+        pass
+    if not dbuser:
+        try:
+            logger.warning("[get_current_user] dbuser_not_found")
+        except Exception:
+            pass
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    
+    return dbuser

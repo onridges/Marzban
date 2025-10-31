@@ -29,10 +29,11 @@ import isValid from "date-fns/isValid";
 import { FC, ReactNode, useState } from "react";
 import GitHubButton from "react-github-btn";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { updateThemeColor } from "utils/themeColor";
 import { Language } from "./Language";
 import useGetUser from "hooks/useGetUser";
+import { useAuth } from "contexts/AuthContext";
 
 type HeaderProps = {
   actions?: ReactNode;
@@ -83,6 +84,8 @@ export const shouldShowDonation = (): boolean => {
 
 export const Header: FC<HeaderProps> = ({ actions }) => {
   const { userData, getUserIsSuccess, getUserIsPending } = useGetUser();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   const isSudo = () => {
     if (!getUserIsPending && getUserIsSuccess) {
@@ -191,11 +194,20 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                   )}
                 </MenuItem>
               </Link>
-              <Link to="/login">
-                <MenuItem maxW="170px" fontSize="sm" icon={<LogoutIcon />}>
-                  {t("header.logout")}
-                </MenuItem>
-              </Link>
+              <MenuItem
+                maxW="170px"
+                fontSize="sm"
+                icon={<LogoutIcon />}
+                onClick={async () => {
+                  try {
+                    await logout();
+                  } finally {
+                    navigate("/login");
+                  }
+                }}
+              >
+                {t("header.logout")}
+              </MenuItem>
             </MenuList>
           </Menu>
 

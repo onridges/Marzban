@@ -63,6 +63,8 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     username = Column(String(34, collation='NOCASE'), unique=True, index=True)
+    # password for users (nullable to allow existing dbs to migrate)
+    hashed_password = Column(String(128), nullable=True)
     proxies = relationship("Proxy", back_populates="user", cascade="all, delete-orphan")
     status = Column(Enum(UserStatus), nullable=False, default=UserStatus.active)
     used_traffic = Column(BigInteger, default=0)
@@ -350,3 +352,17 @@ class NotificationReminder(Base):
     threshold = Column(Integer, nullable=True)
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # store hash of the token (sha256 hex) for security
+    token_hash = Column(String(128), nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    revoked = Column(Boolean, nullable=False, default=False, server_default='0')
+
+    user = relationship("User", backref="refresh_tokens")

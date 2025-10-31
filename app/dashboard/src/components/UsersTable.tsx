@@ -5,6 +5,7 @@ import {
   AccordionPanel,
   Box,
   Button,
+  Checkbox,
   chakra,
   ExpandedIndex,
   HStack,
@@ -48,6 +49,7 @@ import { OnlineBadge } from "./OnlineBadge";
 import { OnlineStatus } from "./OnlineStatus";
 import { Pagination } from "./Pagination";
 import { StatusBadge } from "./StatusBadge";
+import { ApplyTemplateDialog } from "./ApplyTemplateDialog";
 
 const EmptySectionIcon = chakra(AddFileIcon);
 
@@ -105,14 +107,7 @@ const UsageSliderCompact: FC<UsageSliderProps> = (props) => {
       }}
     >
       <Text>
-        {formatBytes(used)} /{" "}
-        {isUnlimited ? (
-          <Text as="span" fontFamily="system-ui">
-            ∞
-          </Text>
-        ) : (
-          formatBytes(total)
-        )}
+        {formatBytes(used)} / {isUnlimited ? <Text as="span" fontFamily="system-ui">∞</Text> : formatBytes(total)}
       </Text>
     </HStack>
   );
@@ -149,18 +144,13 @@ const UsageSlider: FC<UsageSliderProps> = (props) => {
         }}
       >
         <Text>
-          {formatBytes(used)} /{" "}
-          {isUnlimited ? (
-            <Text as="span" fontFamily="system-ui">
-              ∞
-            </Text>
+          {formatBytes(used)} / {isUnlimited ? (
+            <Text as="span" fontFamily="system-ui">∞</Text>
           ) : (
             formatBytes(total) +
             (dataLimitResetStrategy && dataLimitResetStrategy !== "no_reset"
-              ? " " +
-                t(
-                  "userDialog.resetStrategy" +
-                    getResetStrategy(dataLimitResetStrategy)
+              ? " " + t(
+                  "userDialog.resetStrategy" + getResetStrategy(dataLimitResetStrategy)
                 )
               : "")
           )}
@@ -193,6 +183,9 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
     users: totalUsers,
     onEditingUser,
     onFilterChange,
+    selectedUsernames,
+    toggleSelectUser,
+    onApplyingTemplate,
   } = useDashboard();
 
   const { t } = useTranslation();
@@ -212,7 +205,11 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
     () => window.removeEventListener("scroll", calcTop);
   }, []);
 
-  const isFiltered = users.length !== totalUsers.total;
+  const isFiltered =
+    Boolean(filters.search && filters.search.length > 0) ||
+    Boolean(filters.status) ||
+    Boolean((filters as any).owner) ||
+    (typeof filters.offset === "number" && filters.offset > 0);
 
   const handleSort = (column: string) => {
     let newSort = filters.sort;
@@ -241,14 +238,25 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
 
   return (
     <Box id="users-table" overflowX={{ base: "unset", md: "unset" }}>
-      <Accordion
-        allowMultiple
-        display={{ base: "block", md: "none" }}
-        index={selectedRow}
-      >
+      <HStack justifyContent="space-between" mb={3} px={2}>
+        <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.400" }}>
+          已选择 {selectedUsernames.length} 个用户
+        </Text>
+        <Button
+          size="sm"
+          colorScheme="primary"
+          onClick={() => onApplyingTemplate(true)}
+          isDisabled={selectedUsernames.length === 0}
+        >
+          批量应用模板
+        </Button>
+      </HStack>
+
+      <Accordion allowMultiple display={{ base: "block", md: "none" }}>
         <Table orientation="vertical" zIndex="docked" {...props}>
           <Thead zIndex="docked" position="relative">
             <Tr>
+              <Th position="sticky" top={top} minW="48px" p={0}></Th>
               <Th
                 position="sticky"
                 top={top}
@@ -263,31 +271,10 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                   <Sort sort={filters.sort} column="username" />
                 </HStack>
               </Th>
-              <Th
-                position="sticky"
-                top={top}
-                minW="50px"
-                pl={0}
-                pr={0}
-                w="140px"
-                cursor={"pointer"}
-              >
+              <Th position="sticky" top={top} minW="50px" pl={0} pr={0} w="140px">
                 <HStack spacing={0} position="relative">
-                  <Text
-                    position="absolute"
-                    _dark={{
-                      bg: "gray.750",
-                    }}
-                    _light={{
-                      bg: "#F9FAFB",
-                    }}
-                    userSelect="none"
-                    pointerEvents="none"
-                    zIndex={1}
-                    w="100%"
-                  >
-                    {t("usersTable.status")}
-                    {filters.status ? ": " + filters.status : ""}
+                  <Text position="absolute" _dark={{ bg: "gray.750" }} _light={{ bg: "#F9FAFB" }} userSelect="none" pointerEvents="none" zIndex={1} w="100%">
+                    {t("usersTable.status")} {filters.status ? ": " + filters.status : ""}
                   </Text>
                   <Select
                     value={filters.sort}
@@ -300,9 +287,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                     h="auto"
                     w="auto"
                     icon={<></>}
-                    _focusVisible={{
-                      border: "0 !important",
-                    }}
+                    _focusVisible={{ border: "0 !important" }}
                     onChange={handleStatusFilter}
                   >
                     <option></option>
@@ -314,156 +299,81 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                   </Select>
                 </HStack>
               </Th>
-              <Th
-                position="sticky"
-                top={top}
-                minW="100px"
-                cursor={"pointer"}
-                pr={0}
-                onClick={handleSort.bind(null, "used_traffic")}
-              >
+              <Th position="sticky" top={top} minW="100px" cursor={"pointer"} pr={0} onClick={handleSort.bind(null, "used_traffic")}>
                 <HStack>
                   <span>{t("usersTable.dataUsage")}</span>
                   <Sort sort={filters.sort} column="used_traffic" />
                 </HStack>
               </Th>
-              <Th
-                position="sticky"
-                top={top}
-                minW="32px"
-                w="32px"
-                p={0}
-                cursor={"pointer"}
-              ></Th>
+              <Th position="sticky" top={top} minW="32px" w="32px" p={0}></Th>
             </Tr>
           </Thead>
           <Tbody>
             {!useTable &&
               users?.map((user, i) => {
+                const checked = selectedUsernames.includes(user.username);
                 return (
                   <Fragment key={user.username}>
-                    <Tr
-                      onClick={toggleAccordion.bind(null, i)}
-                      cursor="pointer"
-                    >
-                      <Td
-                        borderBottom={0}
-                        minW="100px"
-                        pl={4}
-                        pr={4}
-                        maxW="calc(100vw - 50px - 32px - 100px - 48px)"
-                      >
+                    <Tr onClick={toggleAccordion.bind(null, i)} cursor="pointer">
+                      <Td p={0} w="48px" minW="48px" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox isChecked={checked} onChange={() => toggleSelectUser(user.username)} aria-label="select-user" />
+                      </Td>
+                      <Td borderBottom={0} minW="100px" pl={4} pr={4} maxW="calc(100vw - 50px - 32px - 100px - 48px)">
                         <div className="flex-status">
                           <OnlineBadge lastOnline={user.online_at} />
                           <Text isTruncated>{user.username}</Text>
                         </div>
                       </Td>
                       <Td borderBottom={0} minW="50px" pl={0} pr={0}>
-                        <StatusBadge
-                          compact
-                          showDetail={false}
-                          expiryDate={user.expire}
-                          status={user.status}
-                        />
+                        <StatusBadge compact showDetail={false} expiryDate={user.expire} status={user.status} />
                       </Td>
                       <Td borderBottom={0} minW="100px" pr={0}>
                         <UsageSliderCompact
                           totalUsedTraffic={user.lifetime_used_traffic}
-                          dataLimitResetStrategy={
-                            user.data_limit_reset_strategy
-                          }
+                          dataLimitResetStrategy={user.data_limit_reset_strategy}
                           used={user.used_traffic}
                           total={user.data_limit}
                           colorScheme={statusColors[user.status].bandWidthColor}
                         />
                       </Td>
                       <Td p={0} borderBottom={0} w="32px" minW="32px">
-                        <AccordionArrowIcon
-                          color="gray.600"
-                          _dark={{
-                            color: "gray.400",
-                          }}
-                          transition="transform .2s ease-out"
-                          transform={
-                            selectedRow === i ? "rotate(180deg)" : "0deg"
-                          }
-                        />
+                        <AccordionArrowIcon color="gray.600" _dark={{ color: "gray.400" }} transition="transform .2s ease-out" transform={selectedRow === i ? "rotate(180deg)" : "0deg"} />
                       </Td>
                     </Tr>
-                    <Tr
-                      className="collapsible"
-                      onClick={toggleAccordion.bind(null, i)}
-                    >
-                      <Td p={0} colSpan={4}>
+                    <Tr className="collapsible" onClick={toggleAccordion.bind(null, i)}>
+                      <Td p={0} colSpan={5}>
                         <AccordionItem border={0}>
                           <AccordionButton display="none"></AccordionButton>
-                          <AccordionPanel
-                            border={0}
-                            cursor="pointer"
-                            px={6}
-                            py={3}
-                          >
+                          <AccordionPanel border={0} cursor="pointer" px={6} py={3}>
                             <VStack justifyContent="space-between" spacing="4">
-                              <VStack
-                                alignItems="flex-start"
-                                w="full"
-                                spacing={-1}
-                              >
-                                <Text
-                                  textTransform="capitalize"
-                                  fontSize="xs"
-                                  fontWeight="bold"
-                                  color="gray.600"
-                                  _dark={{
-                                    color: "gray.400",
-                                  }}
-                                >
+                              <VStack alignItems="flex-start" w="full" spacing={-1}>
+                                <Text textTransform="capitalize" fontSize="xs" fontWeight="bold" color="gray.600" _dark={{ color: "gray.400" }}>
                                   {t("usersTable.dataUsage")}
                                 </Text>
                                 <Box width="full" minW="230px">
                                   <UsageSlider
-                                    totalUsedTraffic={
-                                      user.lifetime_used_traffic
-                                    }
-                                    dataLimitResetStrategy={
-                                      user.data_limit_reset_strategy
-                                    }
+                                    totalUsedTraffic={user.lifetime_used_traffic}
+                                    dataLimitResetStrategy={user.data_limit_reset_strategy}
                                     used={user.used_traffic}
                                     total={user.data_limit}
-                                    colorScheme={
-                                      statusColors[user.status].bandWidthColor
-                                    }
+                                    colorScheme={statusColors[user.status].bandWidthColor}
                                   />
                                 </Box>
                               </VStack>
                               <HStack w="full" justifyContent="space-between">
                                 <Box width="full">
-                                  <StatusBadge
-                                    compact
-                                    expiryDate={user.expire}
-                                    status={user.status}
-                                  />
+                                  <StatusBadge compact expiryDate={user.expire} status={user.status} />
                                   <OnlineStatus lastOnline={user.online_at} />
                                 </Box>
                                 <HStack>
                                   <ActionButtons user={user} />
-                                  <Tooltip
-                                    label={t("userDialog.editUser")}
-                                    placement="top"
-                                  >
+                                  <Tooltip label={t("userDialog.editUser")} placement="top">
                                     <IconButton
                                       p="0 !important"
                                       aria-label="Edit user"
                                       bg="transparent"
-                                      _dark={{
-                                        _hover: {
-                                          bg: "gray.700",
-                                        },
-                                      }}
-                                      size={{
-                                        base: "sm",
-                                        md: "md",
-                                      }}
+                                      _dark={{ _hover: { bg: "gray.700" } }}
+                                      size={{ base: "sm", md: "md" }}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         onEditingUser(user);
@@ -485,46 +395,21 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
           </Tbody>
         </Table>
       </Accordion>
-      <Table
-        orientation="vertical"
-        display={{ base: "none", md: "table" }}
-        {...props}
-      >
+
+      <Table orientation="vertical" display={{ base: "none", md: "table" }} {...props}>
         <Thead zIndex="docked" position="relative">
           <Tr>
-            <Th
-              position="sticky"
-              top={{ base: "unset", md: top }}
-              minW="140px"
-              cursor={"pointer"}
-              onClick={handleSort.bind(null, "username")}
-            >
+            <Th position="sticky" top={{ base: "unset", md: top }} minW="48px" p={0}></Th>
+            <Th position="sticky" top={{ base: "unset", md: top }} minW="140px" cursor={"pointer"} onClick={handleSort.bind(null, "username")}>
               <HStack>
                 <span>{t("username")}</span>
                 <Sort sort={filters.sort} column="username" />
               </HStack>
             </Th>
-            <Th
-              position="sticky"
-              top={{ base: "unset", md: top }}
-              width="400px"
-              minW="150px"
-              cursor={"pointer"}
-            >
+            <Th position="sticky" top={{ base: "unset", md: top }} width="400px" minW="150px" cursor={"pointer"}>
               <HStack position="relative" gap={"5px"}>
-                <Text
-                  _dark={{
-                    bg: "gray.750",
-                  }}
-                  _light={{
-                    bg: "#F9FAFB",
-                  }}
-                  userSelect="none"
-                  pointerEvents="none"
-                  zIndex={1}
-                >
-                  {t("usersTable.status")}
-                  {filters.status ? ": " + filters.status : ""}
+                <Text _dark={{ bg: "gray.750" }} _light={{ bg: "#F9FAFB" }} userSelect="none" pointerEvents="none" zIndex={1}>
+                  {t("usersTable.status")} {filters.status ? ": " + filters.status : ""}
                 </Text>
                 <Text>/</Text>
                 <Sort sort={filters.sort} column="expire" />
@@ -543,9 +428,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                   h="auto"
                   w="auto"
                   icon={<></>}
-                  _focusVisible={{
-                    border: "0 !important",
-                  }}
+                  _focusVisible={{ border: "0 !important" }}
                   value={filters.sort}
                   onChange={handleStatusFilter}
                 >
@@ -558,30 +441,19 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                 </Select>
               </HStack>
             </Th>
-            <Th
-              position="sticky"
-              top={{ base: "unset", md: top }}
-              width="350px"
-              minW="230px"
-              cursor={"pointer"}
-              onClick={handleSort.bind(null, "used_traffic")}
-            >
+            <Th position="sticky" top={{ base: "unset", md: top }} width="350px" minW="230px" cursor={"pointer"} onClick={handleSort.bind(null, "used_traffic")}>
               <HStack>
                 <span>{t("usersTable.dataUsage")}</span>
                 <Sort sort={filters.sort} column="used_traffic" />
               </HStack>
             </Th>
-            <Th
-              position="sticky"
-              top={{ base: "unset", md: top }}
-              width="200px"
-              minW="180px"
-            />
+            <Th position="sticky" top={{ base: "unset", md: top }} width="200px" minW="180px" />
           </Tr>
         </Thead>
         <Tbody>
           {useTable &&
             users?.map((user, i) => {
+              const checked = selectedUsernames.includes(user.username);
               return (
                 <Tr
                   key={user.username}
@@ -590,6 +462,9 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                   })}
                   onClick={() => onEditingUser(user)}
                 >
+                  <Td p={0} w="48px" minW="48px" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox isChecked={checked} onChange={() => toggleSelectUser(user.username)} aria-label="select-user" />
+                  </Td>
                   <Td minW="140px">
                     <div className="flex-status">
                       <OnlineBadge lastOnline={user.online_at} />
@@ -598,10 +473,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                     </div>
                   </Td>
                   <Td width="400px" minW="150px">
-                    <StatusBadge
-                      expiryDate={user.expire}
-                      status={user.status}
-                    />
+                    <StatusBadge expiryDate={user.expire} status={user.status} />
                   </Td>
                   <Td width="350px" minW="230px">
                     <UsageSlider
@@ -620,7 +492,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
             })}
           {users.length == 0 && (
             <Tr>
-              <Td colSpan={4}>
+              <Td colSpan={5}>
                 <EmptySection isFiltered={isFiltered} />
               </Td>
             </Tr>
@@ -628,6 +500,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
         </Tbody>
       </Table>
       <Pagination />
+      <ApplyTemplateDialog />
     </Box>
   );
 };
@@ -766,15 +639,7 @@ type EmptySectionProps = {
 const EmptySection: FC<EmptySectionProps> = ({ isFiltered }) => {
   const { onCreateUser } = useDashboard();
   return (
-    <Box
-      padding="5"
-      py="8"
-      display="flex"
-      alignItems="center"
-      flexDirection="column"
-      gap={4}
-      w="full"
-    >
+    <Box padding="5" py="8" display="flex" alignItems="center" flexDirection="column" gap={4} w="full">
       <EmptySectionIcon
         maxHeight="200px"
         maxWidth="200px"
@@ -802,11 +667,7 @@ const EmptySection: FC<EmptySectionProps> = ({ isFiltered }) => {
         {isFiltered ? t("usersTable.noUserMatched") : t("usersTable.noUser")}
       </Text>
       {!isFiltered && (
-        <Button
-          size="sm"
-          colorScheme="primary"
-          onClick={() => onCreateUser(true)}
-        >
+        <Button size="sm" colorScheme="primary" onClick={() => onCreateUser(true)}>
           {t("createUser")}
         </Button>
       )}

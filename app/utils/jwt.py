@@ -27,6 +27,22 @@ def create_admin_token(username: str, is_sudo=False) -> str:
     return encoded_jwt
 
 
+def create_user_token(username: str) -> str:
+    data = {"sub": username, "access": "user", "iat": datetime.utcnow()}
+    if JWT_ACCESS_TOKEN_EXPIRE_MINUTES > 0:
+        expire = datetime.utcnow() + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+        data["exp"] = expire
+    encoded_jwt = jwt.encode(data, get_secret_key(), algorithm="HS256")
+    return encoded_jwt
+
+
+def decode_token(token: str) -> Union[dict, None]:
+    try:
+        payload = jwt.decode(token, get_secret_key(), algorithms=["HS256"])
+        return payload
+    except jwt.PyJWTError:
+        return None
+
 def get_admin_payload(token: str) -> Union[dict, None]:
     try:
         payload = jwt.decode(token, get_secret_key(), algorithms=["HS256"])
@@ -86,5 +102,59 @@ def get_subscription_payload(token: str) -> Union[dict, None]:
                 return {"username": u_username, "created_at": datetime.utcfromtimestamp(u_created_at)}
             else:
                 return
+    except jwt.exceptions.PyJWTError:
+        return
+
+
+def create_user_token(username: str) -> str:
+    """
+    创建用户JWT令牌
+    
+    Args:
+        username: 用户名
+        
+    Returns:
+        str: JWT令牌
+    """
+    from config import JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+    
+    expire = datetime.utcnow() + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {
+        "sub": username,
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "access": "user"
+    }
+    return jwt.encode(to_encode, get_secret_key(), algorithm="HS256")
+
+
+def get_user_payload(token: str) -> Union[dict, None]:
+    """
+    获取用户JWT令牌载荷
+    
+    Args:
+        token: JWT令牌
+        
+    Returns:
+        Union[dict, None]: 令牌载荷或None
+    """
+    try:
+        payload = jwt.decode(token, get_secret_key(), algorithms=["HS256"])
+        if payload.get("access") == "user":
+            return {"username": payload['sub'], "created_at": datetime.utcfromtimestamp(payload['iat'])}
+        return None
+    except jwt.exceptions.PyJWTError:
+        return None
+    try:
+        payload = jwt.decode(token, get_secret_key(), algorithms=["HS256"])
+        username: str = payload.get("sub")
+        access: str = payload.get("access")
+        if not username or access != 'user':
+            return
+        try:
+            created_at = datetime.utcfromtimestamp(payload['iat'])
+        except KeyError:
+            created_at = None
+        return {"username": username, "created_at": created_at}
     except jwt.exceptions.PyJWTError:
         return
